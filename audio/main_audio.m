@@ -42,15 +42,15 @@ audio_fft = fft(audio);
 % double sided spectrum
 P2 = abs(audio_fft/L);
 % single sided spectrum
-FM_RDS_FT = P2(1:L/2+1);
+audio_FT = P2(1:L/2+1);
 
 % recover exact amplitudes
-FM_RDS_FT(2:end-1) = 2*FM_RDS_FT(2:end-1);
+audio_FT(2:end-1) = 2*audio_FT(2:end-1);
 
 
 figure2 = figure;
 axes2 = axes('Parent',figure2,'FontSize',18,'FontName','Times New Roman');
-plot(f/1000,FM_RDS_FT)
+plot(f/1000,audio_FT)
 
 xlabel('f (kHz)','FontWeight','bold','FontSize',24,...
     'FontName','Times New Roman');
@@ -130,7 +130,7 @@ sos = zp2sos(z,p,k);
 %% --------------------- frame by frame processing --------------------- %%
 
 % 1 frame = 0.1 s
-% find number of samples corresponding to 0.01 seconds
+% find number of samples corresponding to 0.1 seconds
 samples_per_frame = Fs*0.1;
 % number of frames
 num_frames = floor(length(audio)/samples_per_frame);
@@ -145,16 +145,28 @@ energy = zeros(1,num_frames);
 % summed magnitude of the signal
 mag = zeros(1,num_frames);
 
+feature = zeros(1,num_frames);
+
+
 % % hamming window
 % win_hamm = hamming(numel(audio));
 % % apply window
 % audio = audio.*win_hamm';
-
+mfcc = zeros(num_frames,13);
+thresh = 1;
 for i=1:num_frames
     % separate frames
     frames(i,:) = audio((i-1)*samples_per_frame+1:i*samples_per_frame);
     % find zero crossings and energy
-    [zr_crs_ind(i),energy(i),mag(i)]=feature_extract(frames(i,:),sos);
+    [zr_crs_ind(i),energy(i),mag(i)]=feature_extract(frames(i,:),sos,Fs);
+    feature(i) = (zr_crs_ind(i)/energy(i))/samples_per_frame;
+    % insert condition for speech/silence here
+    
+end
+for i=1:num_frames
+    if (feature(i)<thresh)
+            mfcc(i,:) = mfcc_coeff(frames(i,:),Fs);
+    end
 end
 
 zr_crs_ind = zr_crs_ind/max(zr_crs_ind);
@@ -170,13 +182,11 @@ hold on;
 plot((1:num_frames)*0.1,energy,'r');
 plot(t,audio,'k');
 
-figure;
-plot((1:num_frames)*0.1,mag);
-xlabel('time (s)');
-ylabel('Summed magnitude of frame');
+hold on;
+plot((1:num_frames)*0.1,feature/max(feature(:)),'m');
+% xlabel('time (s)');
+% ylabel('Summed magnitude of frame');
 
-covar = cov(energy,zr_crs_ind);
-corr=covar/(std(energy)*std(zr_crs_ind));
 
 
 
